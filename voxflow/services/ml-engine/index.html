@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxFlow — Voice-First Real-Time Transcript Refiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base: #090a10;
+    --bg-surface: #10121a;
+    --bg-card: rgba(22, 25, 37, 0.72);
+    --bg-card-hover: rgba(28, 32, 48, 0.85);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-highlight: rgba(139, 92, 246, 0.35);
+    
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --text-dim: #6b7280;
+    
+    --accent-violet: #8b5cf6;
+    --accent-indigo: #6366f1;
+    --accent-cyan: #06b6d4;
+    --accent-emerald: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-rose: #f43f5e;
+    
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-pill: 9999px;
+    
+    --maxw: 1240px;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  
+  body {
+    background-color: var(--bg-base);
+    background-image: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.18), transparent),
+      radial-gradient(ellipse 60% 40% at 85% 60%, rgba(139, 92, 246, 0.10), transparent),
+      radial-gradient(circle at 15% 80%, rgba(6, 182, 212, 0.08), transparent);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+  /* ─── Sticky Navbar ("Now Bar") ────────────────────────────────────────── */
+  .now-bar {
+    position: sticky;
+    top: 14px;
+    z-index: 100;
+    max-width: var(--maxw);
+    margin: 14px auto 0;
+    padding: 0 20px;
+  }
+  
+  .now-bar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(16, 18, 26, 0.78);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 10px 22px;
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+  
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent-violet), var(--accent-cyan));
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 14px rgba(139, 92, 246, 0.5);
+  }
+  
+  .brand-logo svg {
+    width: 16px;
+    height: 16px;
+    fill: #ffffff;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-amber);
+    box-shadow: 0 0 8px var(--accent-amber);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .status-dot.connected {
+    background: var(--accent-emerald);
+    box-shadow: 0 0 10px var(--accent-emerald);
+    animation: pulseGlow 2.5s infinite;
+  }
+  .status-dot.offline {
+    background: var(--accent-rose);
+    box-shadow: 0 0 8px var(--accent-rose);
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.9); }
+  }
+
+  .nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+  .nav-menu a {
+    transition: color 0.15s ease;
+  }
+  .nav-menu a:hover {
+    color: var(--text-main);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 7px 14px;
+    border-radius: var(--radius-pill);
+    font-size: 12.5px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover {
+    color: var(--text-main);
+    border-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.03);
+  }
+
+  .btn-accent {
+    background: linear-gradient(135deg, var(--accent-violet), var(--accent-indigo));
+    color: #ffffff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: var(--radius-pill);
+    font-size: 12.5px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-accent:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    filter: brightness(1.08);
+  }
+
+  /* ─── Hero Section ──────────────────────────────────────────────────────── */
+  .hero-section {
+    padding: 60px 0 30px;
+    text-align: center;
+  }
+
+  .hero-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 15px;
+    border-radius: var(--radius-pill);
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #c4b5fd;
+    margin-bottom: 20px;
+  }
+
+  .hero-title {
+    font-size: clamp(34px, 5vw, 54px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    max-width: 860px;
+    margin: 0 auto 18px;
+  }
+  .hero-title span {
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-cyan) 80%, var(--accent-violet) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-subtitle {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 640px;
+    margin: 0 auto 32px;
+    line-height: 1.6;
+  }
+
+  /* ─── Studio Workspace Grid ─────────────────────────────────────────────── */
+  .studio-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 24px;
+    margin-bottom: 60px;
+  }
+
+  @media (max-width: 960px) {
+    .studio-grid { grid-template-columns: 1fr; }
+    .nav-menu { display: none; }
+  }
+
+  .card {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: 0 16px 36px -10px rgba(0,0,0,0.4);
+    transition: border-color 0.25s;
+  }
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+  }
+
+  /* ─── Audio & Voice Input Controls ───────────────────────────────────────── */
+  .voice-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+
+  .btn-record {
+    background: rgba(244, 63, 94, 0.14);
+    color: #fda4af;
+    border: 1px solid rgba(244, 63, 94, 0.35);
+    padding: 10px 20px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-record:hover {
+    background: rgba(244, 63, 94, 0.25);
+    border-color: rgba(244, 63, 94, 0.6);
+  }
+  .btn-record.recording {
+    background: var(--accent-rose);
+    color: #ffffff;
+    box-shadow: 0 0 20px rgba(244, 63, 94, 0.6);
+    animation: recordPulse 1.5s infinite;
+  }
+
+  @keyframes recordPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* Canvas Visualizer */
+  .visualizer-box {
+    width: 100%;
+    height: 48px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+  #visualizer-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* Input Sandbox */
+  .input-label {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .transcript-input {
+    width: 100%;
+    height: 90px;
+    background: rgba(10, 12, 18, 0.6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .transcript-input:focus {
+    border-color: var(--accent-violet);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+  }
+
+  .sample-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0 22px;
+  }
+  .sample-chip {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 4px 11px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sample-chip:hover {
+    background: rgba(139, 92, 246, 0.14);
+    color: #e0e7ff;
+    border-color: rgba(139, 92, 246, 0.4);
+  }
+
+  /* ─── Multi-Stage Output Display ────────────────────────────────────────── */
+  .output-tabs {
+    display: flex;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 3px;
+    width: max-content;
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: var(--accent-violet);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+  }
+
+  .output-box {
+    position: relative;
+    background: rgba(10, 12, 18, 0.85);
+    border: 1px solid var(--border-highlight);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    min-height: 120px;
+    font-size: 15px;
+    line-height: 1.65;
+    color: #f3f4f6;
+  }
+  
+  .output-box.stage-raw {
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+  }
+  .output-box.stage-baseline {
+    border-color: rgba(6, 182, 212, 0.4);
+  }
+  .output-box.stage-refined {
+    border-color: rgba(139, 92, 246, 0.5);
+    box-shadow: inset 0 0 20px rgba(139, 92, 246, 0.08);
+  }
+
+  .filler-highlight {
+    background: rgba(244, 63, 94, 0.2);
+    color: #fda4af;
+    padding: 2px 5px;
+    border-radius: 4px;
+    text-decoration: line-through;
+  }
+
+  .copy-action {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    color: var(--text-muted);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .copy-action:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+  }
+  .copy-action.copied {
+    background: var(--accent-emerald);
+    color: #ffffff;
+    border-color: var(--accent-emerald);
+  }
+
+  /* ─── Metrics & Intelligence Card (Right Column) ────────────────────────── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .metric-item {
+    background: rgba(10, 12, 18, 0.55);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  .metric-title {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .metric-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+  .metric-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Adaptive Memory Explorer */
+  .memory-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .memory-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: #ddd6fe;
+  }
+  .memory-count {
+    background: rgba(139, 92, 246, 0.4);
+    border-radius: var(--radius-pill);
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+
+  /* ─── Visual Pipeline Architecture Section ──────────────────────────────── */
+  .arch-section {
+    padding: 50px 0;
+    border-top: 1px solid var(--border);
+  }
+  .arch-head {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto 40px;
+  }
+  .arch-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .pipeline-flow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    position: relative;
+  }
+  @media (max-width: 860px) {
+    .pipeline-flow { grid-template-columns: 1fr; }
+  }
+
+  .pipeline-step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 22px;
+    position: relative;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .pipeline-step:hover {
+    transform: translateY(-2px);
+    border-color: rgba(139, 92, 246, 0.4);
+  }
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    margin-bottom: 12px;
+    display: block;
+  }
+  .step-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* ─── Floating Widget Banner ────────────────────────────────────────────── */
+  .widget-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(6, 182, 212, 0.1));
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    margin: 40px 0 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  /* ─── Footer ────────────────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 36px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Sticky Now Bar ──────────────────────────────────────────────────── -->
+<header class="now-bar">
+  <div class="now-bar-inner">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm-1 16.93V21h2v-2.07A7.003 7.003 0 0 0 19 12h-2a5 5 0 0 1-10 0H5a7.003 7.003 0 0 0 6 6.93z"/></svg>
+      </div>
+      <span>VoxFlow</span>
+      <div class="status-badge" id="badge-connection">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">connecting…</span>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <a href="#studio">Studio</a>
+      <a href="#pipeline">Architecture</a>
+      <a href="#memory">Adaptive Memory</a>
+      <a href="/widget" target="_blank" rel="noopener noreferrer">Floating Pill</a>
+    </nav>
+
+    <div class="nav-actions">
+      <a class="btn-ghost" href="/widget" target="_blank" rel="noopener noreferrer" title="Open Floating Widget">
+        Floating Widget ↗
+      </a>
+      <button class="btn-accent" id="btn-quick-sample" type="button">
+        ⚡ Run Sample
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- ─── Hero ─────────────────────────────────────────────────────────── -->
+  <section class="hero-section">
+    <div class="hero-pill">VOICE-FIRST INTELLIGENCE & ADAPTIVE REFINEMENT</div>
+    <h1 class="hero-title">Turn messy voice speech into <span>crystal-clear structured notes.</span></h1>
+    <p class="hero-subtitle">
+      VoxFlow listens in real-time, prunes personal vocal fillers with self-learning adaptive memory, and refines complex thoughts with 100% on-device neural intelligence.
+    </p>
+  </section>
+
+  <!-- ─── Live Studio Workspace ────────────────────────────────────────── -->
+  <section class="studio-grid" id="studio">
+    <!-- Left Column: Voice & Transcript Studio -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🎙️ Live Audio & Transcript Studio</span>
+          <span class="badge" id="engine-badge">Engine: Local ML + Baseline</span>
+        </div>
+        <div class="status-badge">
+          <span id="latency-label">Live WS Stream</span>
+        </div>
+      </div>
+
+      <!-- Voice Recording Trigger & Visualizer -->
+      <div class="voice-controls">
+        <button class="btn-record" id="btn-mic" type="button">
+          <span id="mic-icon">🔴</span>
+          <span id="mic-text">Record Voice</span>
+        </button>
+        <button class="btn-ghost" id="btn-process-input" type="button">
+          Refine Input Text ↵
+        </button>
+        <button class="btn-ghost" id="btn-clear" type="button">
+          Clear
+        </button>
+      </div>
+
+      <div class="visualizer-box">
+        <canvas id="visualizer-canvas"></canvas>
+      </div>
+
+      <!-- Processing Options Bar -->
+      <div class="options-bar" style="display:flex; flex-wrap:wrap; gap:12px; margin:14px 0; align-items:center; background:rgba(255,255,255,0.03); padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label style="font-size:11px; font-weight:600; color:var(--text-muted);" for="sel-language">Language:</label>
+          <select id="sel-language" style="background:#131826; border:1px solid var(--border); color:var(--text-main); font-size:11px; padding:4px 8px; border-radius:4px; outline:none;">
+            <option value="auto">Auto (English / Urdu / Roman)</option>
+            <option value="en">English (en-US)</option>
+            <option value="ur_roman">Roman Urdu (ur-PK)</option>
+            <option value="ur">Urdu Script (اردو)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label style="font-size:11px; font-weight:600; color:var(--text-muted);" for="sel-punct-style">Punctuation:</label>
+          <select id="sel-punct-style" style="background:#131826; border:1px solid var(--border); color:var(--text-main); font-size:11px; padding:4px 8px; border-radius:4px; outline:none;">
+            <option value="standard">Standard Grammar</option>
+            <option value="casual">Casual (Texting)</option>
+            <option value="formal">Formal</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+          <label style="font-size:11px; font-weight:600; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="chk-emoji" style="cursor:pointer; accent-color:var(--accent-violet);" />
+            <span>✨ Contextual Emojis</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Text Sandbox Input -->
+      <label class="input-label" for="custom-input">Spoken Transcript Input (Edit or Speak):</label>
+      <textarea class="transcript-input" id="custom-input" placeholder="Speak via mic or type a messy voice note with fillers (e.g. 'um basically what I was gonna say is like we should deploy the staging hotfix right now')..."></textarea>
+
+      <!-- Quick Canned Samples -->
+      <div class="sample-chips">
+        <span class="sample-chip" data-sample="I wanna make sure the launch notes are polished and the follow-up actions feel clear for the team.">Launch Notes</span>
+        <span class="sample-chip" data-sample="So uh basically what I was thinking is that we need to like check the API response time because right now it's taking like two seconds, no actually 2.4 seconds, and users are going to hate that. We should cache the endpoint in Redis, you know?">Tech Spec & Self-Correction</span>
+        <span class="sample-chip" data-sample="yaar mujhe ye file today submit karni hai lekin staging build error de raha hai">Code-Switching (Urdu/English)</span>
+        <span class="sample-chip" data-sample="Okay so first thing we gotta do tomorrow is fix the Docker build error in CI, then ping Sarah about mockups... wait before that check if staging database migrated properly.">Action Items</span>
+      </div>
+
+      <!-- Output Multi-Stage Tabs -->
+      <div class="output-tabs">
+        <button class="tab-btn active" id="tab-refined" type="button">✨ Neural Refined</button>
+        <button class="tab-btn" id="tab-baseline" type="button">⚡ Baseline Cleaned</button>
+        <button class="tab-btn" id="tab-raw" type="button">📝 Raw Spoken</button>
+      </div>
+
+      <!-- Output Display Box -->
+      <div class="output-box stage-refined" id="output-text" aria-live="polite">
+        <button class="copy-action" id="btn-copy" type="button">Copy</button>
+        <div id="output-content">"Ready to refine your voice notes. Click Record Voice or run a sample to test."</div>
+      </div>
+    </div>
+
+    <!-- Right Column: Intelligence & Adaptive Memory Inspector -->
+    <div class="card" id="memory">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🧠 Adaptive Memory & Telemetry</span>
+        </div>
+        <button class="btn-ghost" id="btn-refresh-memory" type="button" style="padding:4px 10px; font-size:11px;">
+          ↻ Refresh
+        </button>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-item">
+          <div class="metric-title">Language ID</div>
+          <div class="metric-val" id="val-detected-lang" style="color:var(--accent-cyan); font-size:14px;">AUTO (EN)</div>
+          <div class="metric-sub" id="val-lang-confidence">Ready for speech</div>
+        </div>
+
+        <div class="metric-item">
+          <div class="metric-title">Intent Preservation</div>
+          <div class="metric-val" id="val-intent-score" style="color:var(--accent-emerald); font-size:14px;">100%</div>
+          <div class="metric-sub">Semantic guardrail</div>
+        </div>
+
+        <div class="metric-item">
+          <div class="metric-title">Prominent Keyword</div>
+          <div class="metric-val" id="val-best-word" style="color:var(--accent-cyan);">voice</div>
+          <div class="metric-sub">Ranked by length × freq</div>
+        </div>
+
+        <div class="metric-item">
+          <div class="metric-title">Total Transcripts</div>
+          <div class="metric-val" id="val-tx-count">0</div>
+          <div class="metric-sub">Observed this session</div>
+        </div>
+
+        <div class="metric-item">
+          <div class="metric-title">Learned Fillers</div>
+          <div class="metric-val" id="val-fillers-count" style="color:var(--accent-violet);">0</div>
+          <div class="metric-sub">Crossed suppression threshold</div>
+        </div>
+
+        <div class="metric-item">
+          <div class="metric-title">Memory Store</div>
+          <div class="metric-val" id="val-memory-status" style="color:var(--accent-emerald); font-size:15px;">Active</div>
+          <div class="metric-sub">Atomic JSON persistence</div>
+        </div>
+      </div>
+
+      <!-- Learned Fillers Explorer -->
+      <label class="input-label">Learned Habitual Fillers (Pruned Automatically):</label>
+      <div class="memory-list" id="learned-fillers-list">
+        <span class="badge">None active yet (threshold: 3 observations)</span>
+      </div>
+
+      <label class="input-label" style="margin-top:20px;">Top Bigram Vocabulary:</label>
+      <div class="memory-list" id="common-phrases-list">
+        <span class="badge">Collecting domain terminology…</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Visual Pipeline Architecture ─────────────────────────────────── -->
+  <section class="arch-section" id="pipeline">
+    <div class="arch-head">
+      <h2 class="arch-title">High-Performance Refinement Pipeline</h2>
+      <p style="color:var(--text-muted); font-size:15px;">
+        VoxFlow transforms raw spoken audio into production-grade text through an intelligent multi-layer pipeline.
+      </p>
+    </div>
+
+    <div class="pipeline-flow">
+      <div class="pipeline-step">
+        <span class="step-num">STAGE 01</span>
+        <div class="step-title">Audio / Text Capture</div>
+        <p class="step-desc">Real-time browser speech recognition or desktop hotkey stream captured via bidirectional WebSocket.</p>
+      </div>
+
+      <div class="pipeline-step">
+        <span class="step-num">STAGE 02</span>
+        <div class="step-title">Adaptive Memory</div>
+        <p class="step-desc">Identifies personal verbal habits, extracts bigrams, and dynamically suppresses high-frequency fillers.</p>
+      </div>
+
+      <div class="pipeline-step">
+        <span class="step-num">STAGE 03</span>
+        <div class="step-title">Rule-Based Normalizer</div>
+        <p class="step-desc">Normalizes informal contractions (wanna &rarr; want to), fixes punctuation, and applies casing rules.</p>
+      </div>
+
+      <div class="pipeline-step">
+        <span class="step-num">STAGE 04</span>
+        <div class="step-title">Local ML Refinement</div>
+        <p class="step-desc">Applies zero-hallucination on-device rewrites, resolves mid-sentence self-corrections, and builds Markdown summaries.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Floating Widget Banner ───────────────────────────────────────── -->
+  <div class="widget-banner">
+    <div>
+      <h3 style="font-size:20px; font-weight:700; margin-bottom:6px;">Standalone Floating Pill Widget</h3>
+      <p style="color:var(--text-muted); font-size:14px; max-width:550px;">
+        Want a minimalist, distraction-free voice bar for your desktop or web overlay? Try our standalone fluid gooey-pill widget.
+      </p>
+    </div>
+    <a class="btn-accent" href="/widget" target="_blank" rel="noopener noreferrer">
+      Open Floating Widget ↗
+    </a>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <span>© 2026 VoxFlow ML Engine — Designed for voice-first clarity</span>
+    <span>FastAPI · WebSockets · On-Device ML · Adaptive Memory</span>
+    <a href="https://github.com" target="_blank" rel="noopener noreferrer" style="color:var(--text-muted);">Documentation & GitHub</a>
+  </div>
+</footer>
+
+<!-- ─── JavaScript Engine Client ────────────────────────────────────────── -->
+<script>
+(function(){
+  // DOM Elements
+  const statusDot       = document.getElementById('status-dot');
+  const statusText      = document.getElementById('status-text');
+  const customInput     = document.getElementById('custom-input');
+  const outputBox       = document.getElementById('output-text');
+  const outputContent   = document.getElementById('output-content');
+  const btnProcessInput = document.getElementById('btn-process-input');
+  const btnQuickSample  = document.getElementById('btn-quick-sample');
+  const btnClear        = document.getElementById('btn-clear');
+  const btnCopy         = document.getElementById('btn-copy');
+  const btnMic          = document.getElementById('btn-mic');
+  const micText         = document.getElementById('mic-text');
+  const micIcon         = document.getElementById('mic-icon');
+  const btnRefreshMemory= document.getElementById('btn-refresh-memory');
+  
+  const tabRefined      = document.getElementById('tab-refined');
+  const tabBaseline     = document.getElementById('tab-baseline');
+  const tabRaw          = document.getElementById('tab-raw');
+  
+  const valBestWord     = document.getElementById('val-best-word');
+  const valTxCount      = document.getElementById('val-tx-count');
+  const valFillersCount = document.getElementById('val-fillers-count');
+  const valDetectedLang = document.getElementById('val-detected-lang');
+  const valLangConfidence = document.getElementById('val-lang-confidence');
+  const valIntentScore  = document.getElementById('val-intent-score');
+  const learnedListEl   = document.getElementById('learned-fillers-list');
+  const phrasesListEl   = document.getElementById('common-phrases-list');
+
+  const selLanguage     = document.getElementById('sel-language');
+  const selPunctStyle   = document.getElementById('sel-punct-style');
+  const chkEmoji        = document.getElementById('chk-emoji');
+
+  const latencyLabel    = document.getElementById('latency-label');
+  const engineBadge     = document.getElementById('engine-badge');
+  const valMemoryStatus = document.getElementById('val-memory-status');
+
+  const canvas          = document.getElementById('visualizer-canvas');
+  const ctx             = canvas ? canvas.getContext('2d') : null;
+
+  // Local file protocol adaptivity
+  if (location.protocol === 'file:') {
+    document.querySelectorAll('a[href="/widget"]').forEach(a => {
+      a.href = 'widget.html';
+    });
+  }
+
+  // State
+  let socket            = null;
+  let currentRaw        = '';
+  let currentBaseline   = '';
+  let currentRefined    = '';
+  let activeTab         = 'refined'; // 'refined' | 'baseline' | 'raw'
+  let isRecording       = false;
+  let recognition       = null;
+  let animFrameId       = null;
+  let sampleIndex       = 0;
+  let webLiveBuffer     = '';
+  let webPendingFinal   = '';
+  let webSilenceTimer   = null;
+  let lastSentUtterance = '';
+  let lastSentTimestamp = 0;
+  let hasRealOutput     = false;
+  let lastInterimTime   = 0;
+  let serverTimeoutTimer= null;
+
+  const samples = [
+    "I wanna make sure the launch notes are polished and the follow-up actions feel clear for the team.",
+    "So uh basically what I was thinking is that we need to like check the API response time because right now it's taking like two seconds, no actually 2.4 seconds, and users are going to hate that. We should cache the endpoint in Redis, you know?",
+    "yaar mujhe ye file today submit karni hai lekin staging build error de raha hai",
+    "Okay so first thing we gotta do tomorrow is fix the Docker build error in CI, then ping Sarah about mockups... wait before that check if staging database migrated properly."
+  ];
+
+  // ── Canvas Audio Wave Visualizer ─────────────────────────────────────────
+  function resizeCanvas() {
+    if (!canvas || !canvas.parentElement || !ctx) return;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const w = rect.width || canvas.parentElement.clientWidth || 300;
+    const h = rect.height || canvas.parentElement.clientHeight || 48;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  let wavePhase = 0;
+  let audioCtx = null, analyser = null, dataArray = null, micStream = null;
+
+  async function initMicAnalyzer() {
+    if (audioCtx) return;
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!isRecording) {
+        stream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+        return;
+      }
+      micStream = stream;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      if (!isRecording) {
+        stopMicAnalyzer();
+        return;
+      }
+      const source = audioCtx.createMediaStreamSource(micStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      source.connect(analyser);
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+    } catch (e) {
+      console.warn('[VoxFlow] Audio visualizer error', e);
+    }
+  }
+
+  function stopMicAnalyzer() {
+    if (micStream) {
+      micStream.getTracks().forEach(t => {
+        try { t.stop(); } catch(_) {}
+      });
+    }
+    if (audioCtx && audioCtx.state !== 'closed') {
+      try { audioCtx.close(); } catch(_) {}
+    }
+    micStream = null;
+    audioCtx = null;
+    analyser = null;
+    dataArray = null;
+  }
+
+  function drawVisualizer() {
+    if (!canvas || !canvas.parentElement || !ctx) return;
+    const w = canvas.parentElement.clientWidth || 300;
+    const h = canvas.parentElement.clientHeight || 48;
+    ctx.clearRect(0, 0, w, h);
+
+    const bars = 48;
+    const barWidth = Math.max(1, (w / bars) - 2);
+
+    if (analyser && isRecording && dataArray) {
+      analyser.getByteFrequencyData(dataArray);
+    }
+
+    for (let i = 0; i < bars; i++) {
+      let heightMultiplier = 0.15;
+      if (isRecording) {
+        if (analyser && dataArray) {
+          const val = dataArray[i] || 0;
+          heightMultiplier = 0.15 + (val / 255) * 0.7;
+        } else {
+          // dynamic reactive wave fallback when recording
+          heightMultiplier = 0.2 + 0.65 * Math.abs(Math.sin((i * 0.3) + wavePhase));
+        }
+      } else {
+        // idle gentle breathing wave
+        heightMultiplier = 0.12 + 0.1 * Math.sin((i * 0.2) + wavePhase * 0.5);
+      }
+      const barHeight = Math.max(4, h * heightMultiplier);
+      const x = i * (barWidth + 2);
+      const y = (h - barHeight) / 2;
+
+      // Gradient color based on activity
+      const grad = ctx.createLinearGradient(0, y, 0, y + barHeight);
+      if (isRecording) {
+        grad.addColorStop(0, '#f43f5e');
+        grad.addColorStop(1, '#8b5cf6');
+      } else {
+        grad.addColorStop(0, 'rgba(139, 92, 246, 0.45)');
+        grad.addColorStop(1, 'rgba(6, 182, 212, 0.25)');
+      }
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        try {
+          ctx.roundRect(x, y, barWidth, barHeight, 2);
+        } catch (_) {
+          ctx.rect(x, y, barWidth, barHeight);
+        }
+      } else {
+        ctx.rect(x, y, barWidth, barHeight);
+      }
+      ctx.fill();
+    }
+
+    wavePhase += isRecording ? 0.18 : 0.04;
+    animFrameId = requestAnimationFrame(drawVisualizer);
+  }
+  drawVisualizer();
+
+  // ── Web Speech API (Microphone Recognition) ──────────────────────────────
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRec) {
+    try {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        isRecording = true;
+        btnMic.classList.add('recording');
+        micText.textContent = 'Listening…';
+        if (micIcon) micIcon.textContent = '⏹️';
+      };
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        let newFinal = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            newFinal += event.results[i][0].transcript + ' ';
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        if (newFinal.trim()) {
+          webPendingFinal = (webPendingFinal ? webPendingFinal + ' ' : '') + newFinal.trim();
+        }
+        webLiveBuffer = interim.trim();
+
+        const combined = (webPendingFinal + (webLiveBuffer ? ' ' + webLiveBuffer : '')).trim();
+        if (combined) {
+          customInput.value = combined;
+          // Send lightweight interim preview to WebSocket if available (throttled ~400ms)
+          const now = Date.now();
+          if (now - lastInterimTime >= 400) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ type: 'transcript_interim', text: combined }));
+              lastInterimTime = now;
+            }
+          }
+        }
+
+        // Automatically send on natural 1.8s silence pause while recording
+        clearTimeout(webSilenceTimer);
+        webSilenceTimer = setTimeout(() => {
+          if (combined && isRecording) {
+            sendTranscript(combined);
+            webPendingFinal = '';
+            webLiveBuffer = '';
+          }
+        }, 1800);
+      };
+
+      recognition.onerror = (e) => {
+        console.warn('SpeechRecognition error:', e);
+        if (e.error === 'not-allowed') {
+          alert('Microphone access was denied. Please allow microphone permissions in your browser settings.');
+        }
+        stopRecording();
+      };
+
+      recognition.onend = () => {
+        if (isRecording) {
+          stopRecording();
+        }
+      };
+    } catch (err) {
+      console.warn('SpeechRecognition initialization error:', err);
+    }
+  } else {
+    btnMic.title = "Web Speech API not supported in this browser. You can type or use sample transcripts!";
+    btnMic.style.opacity = '0.85';
+  }
+
+  function startRecording() {
+    if (!recognition) {
+      alert("Microphone recognition requires a Web Speech API compatible browser (such as Google Chrome, Microsoft Edge, or Safari). You can also type into the sandbox or run sample transcripts!");
+      return;
+    }
+    webLiveBuffer = '';
+    webPendingFinal = '';
+    const langVal = (selLanguage && selLanguage.value) ? selLanguage.value : 'auto';
+    if (langVal === 'ur') {
+      recognition.lang = 'ur-PK';
+    } else {
+      // 'auto', 'en', 'ur_roman' all explicitly map to 'en-US'
+      recognition.lang = 'en-US';
+    }
+    try {
+      recognition.start();
+      initMicAnalyzer();
+    } catch (err) {
+      console.warn('Recognition start caught:', err);
+      try { recognition.stop(); } catch(_) {}
+    }
+  }
+
+  function stopRecording() {
+    clearTimeout(webSilenceTimer);
+    isRecording = false;
+    btnMic.classList.remove('recording');
+    micText.textContent = 'Record Voice';
+    if (micIcon) micIcon.textContent = '🔴';
+    if (recognition) {
+      try { recognition.stop(); } catch(e){}
+    }
+    stopMicAnalyzer();
+
+    const utterance = (webPendingFinal + (webLiveBuffer ? ' ' + webLiveBuffer : '')).trim();
+    webLiveBuffer = '';
+    webPendingFinal = '';
+    if (utterance) {
+      sendTranscript(utterance);
+    }
+  }
+
+  if (btnMic) {
+    btnMic.addEventListener('click', () => {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    });
+  }
+
+  // ── Highlight Fillers in Raw View (XSS Safe) ─────────────────────────────
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // True fillers only (matching widget list): um, uh, er, ah, you know, and parenthetical like
+  const FILLER_REGEX = /\b(um|uh|er|ah|you\s+know)\b|(?:,\s*like\s*,|,\s*like\b|\blike\s*,)/gi;
+  function formatRawWithHighlights(text) {
+    if (!text) return '';
+    const safe = escapeHtml(text);
+    return safe.replace(FILLER_REGEX, match => `<span class="filler-highlight">${match}</span>`);
+  }
+
+  // ── Render Output Tab ───────────────────────────────────────────────────
+  function updateOutputView() {
+    outputBox.classList.remove('stage-refined', 'stage-baseline', 'stage-raw');
+
+    if (activeTab === 'refined') {
+      outputBox.classList.add('stage-refined');
+      outputContent.textContent = currentRefined || currentBaseline || "Ready to refine your voice notes. Click Record Voice or run a sample to test.";
+    } else if (activeTab === 'baseline') {
+      outputBox.classList.add('stage-baseline');
+      outputContent.textContent = currentBaseline || "No baseline text yet.";
+    } else if (activeTab === 'raw') {
+      outputBox.classList.add('stage-raw');
+      if (currentRaw) {
+        outputContent.innerHTML = formatRawWithHighlights(currentRaw);
+      } else {
+        outputContent.textContent = "No raw input yet.";
+      }
+    }
+  }
+
+  function setTab(tab) {
+    activeTab = tab;
+    if (tabRefined) tabRefined.classList.toggle('active', tab === 'refined');
+    if (tabBaseline) tabBaseline.classList.toggle('active', tab === 'baseline');
+    if (tabRaw) tabRaw.classList.toggle('active', tab === 'raw');
+    updateOutputView();
+  }
+
+  if (tabRefined) tabRefined.addEventListener('click', () => setTab('refined'));
+  if (tabBaseline) tabBaseline.addEventListener('click', () => setTab('baseline'));
+  if (tabRaw) tabRaw.addEventListener('click', () => setTab('raw'));
+
+  // ── Local Fallback Processor ─────────────────────────────────────────────
+  const _NORMS = [
+    [/\bgonna\b/gi,'going to'],[/\bwanna\b/gi,'want to'],[/\bgotta\b/gi,'got to'],
+    [/\bkinda\b/gi,'kind of'],[/\bsorta\b/gi,'sort of'],[/\bdunno\b/gi,"don't know"],
+    [/\bcoulda\b/gi,'could have'],[/\bwoulda\b/gi,'would have'],[/\bshoulda\b/gi,'should have'],
+    [/\blemme\b/gi,'let me'],[/\bgimme\b/gi,'give me'],[/\bnope\b/gi,'no'],
+  ];
+
+  function localProcess(text) {
+    let t = text;
+    for (const [p, r] of _NORMS) t = t.replace(p, r);
+    t = t.replace(/\b(um|uh|er|ah|you\s+know)\b/gi, '');
+    t = t.replace(/(?:,\s*like\s*,|,\s*like\b|\blike\s*,)/gi, ', ');
+    t = t
+      .replace(/\s*,\s*,+/g, ',')
+      .replace(/\s+([,!?.;:])/g, '$1')
+      .replace(/,\s*([.!?])/g, '$1')
+      .replace(/^[\s,;:]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (t) t = t[0].toUpperCase() + t.slice(1);
+    if (t && !/[.!?]$/.test(t) && t.split(' ').length >= 4) t += '.';
+    return t;
+  }
+
+  // ── WebSocket Connection & Communication ─────────────────────────────────
+  function connect() {
+    try {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      const isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+      const wsHost = (isHttp && location.host) ? location.host : '127.0.0.1:8000';
+      const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      const wsUrl = `${wsProto}${wsHost}/ws`;
+
+      socket = new WebSocket(wsUrl);
+
+      socket.addEventListener('open', () => {
+        statusDot.className = 'status-dot connected';
+        statusText.textContent = 'Connected';
+        socket.send(JSON.stringify({ type: 'ping' }));
+        fetchMemorySummary();
+      });
+
+      socket.addEventListener('message', (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+
+          if (payload.type === 'transcript_interim') {
+            if (activeTab === 'refined' && isRecording && payload.text) {
+              outputContent.textContent = payload.text;
+            }
+          } else if (payload.type === 'transcript') {
+            clearTimeout(serverTimeoutTimer);
+            hasRealOutput = true;
+            currentRaw = payload.raw || '';
+            currentBaseline = payload.text_baseline || '';
+            currentRefined = payload.text || '';
+            if (valBestWord) valBestWord.textContent = payload.best_word || 'voice';
+
+            // Telemetry Updates
+            if (latencyLabel) {
+              const dur = payload.duration_ms !== undefined ? Math.round(payload.duration_ms) + 'ms' : 'Live';
+              const mode = payload.cached ? 'Cached' : 'Neural';
+              latencyLabel.textContent = `${dur} · ${mode}`;
+            }
+
+            if (engineBadge) {
+              if (payload.cached) {
+                engineBadge.textContent = 'Engine: Cache Hit';
+              } else if (payload.detected_language === 'ur' || payload.detected_language === 'ur_roman') {
+                engineBadge.textContent = 'Engine: Local Multilingual';
+              } else {
+                engineBadge.textContent = 'Engine: Local ML + Baseline';
+              }
+            }
+
+            if (valDetectedLang && payload.detected_language) {
+              const langCode = payload.is_code_switched ? 'MIXED (EN/UR)' : payload.detected_language.toUpperCase().replace('_', '-');
+              valDetectedLang.textContent = langCode;
+              if (valLangConfidence) {
+                valLangConfidence.textContent = `${Math.round((payload.language_confidence || 1.0) * 100)}% confidence`;
+              }
+            }
+            if (valIntentScore && payload.intent_score !== undefined) {
+              valIntentScore.textContent = `${Math.round(payload.intent_score * 100)}%`;
+            }
+
+            if (payload.memory) {
+              renderMemory(payload.memory);
+            }
+            updateOutputView();
+          } else if (payload.type === 'error') {
+            clearTimeout(serverTimeoutTimer);
+            console.warn('[VoxFlow] WebSocket server error:', payload.message);
+            if (!currentRefined && !currentBaseline) {
+              outputContent.textContent = payload.message || 'Processing error occurred.';
+            }
+          }
+        } catch (err) {
+          console.error('WebSocket parse error', err);
+        }
+      });
+
+      socket.addEventListener('close', () => {
+        statusDot.className = 'status-dot offline';
+        statusText.textContent = 'Offline (Local Fallback)';
+        if (latencyLabel) latencyLabel.textContent = 'Local Standby';
+        setTimeout(connect, 3000);
+      });
+
+      socket.addEventListener('error', () => {
+        statusDot.className = 'status-dot offline';
+        statusText.textContent = 'Offline (Local Fallback)';
+      });
+    } catch (e) {
+      statusDot.className = 'status-dot offline';
+      statusText.textContent = 'Offline (Local Fallback)';
+      setTimeout(connect, 3000);
+    }
+  }
+
+  function sendTranscript(text) {
+    if (!text || !text.trim()) return;
+    const cleanText = text.trim();
+
+    // Deduplication check: ignore duplicate within 1.5 seconds
+    if (cleanText === lastSentUtterance && (Date.now() - lastSentTimestamp) < 1500) {
+      return;
+    }
+    lastSentUtterance = cleanText;
+    lastSentTimestamp = Date.now();
+    currentRaw = cleanText;
+    currentBaseline = '';
+    currentRefined = '';
+    hasRealOutput = false;
+    clearTimeout(serverTimeoutTimer);
+
+    // Responsive immediate feedback
+    if (activeTab === 'refined') {
+      outputContent.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">⚡ Refining with Local ML & Adaptive Memory…</span>';
+    } else if (activeTab === 'raw') {
+      outputContent.innerHTML = formatRawWithHighlights(cleanText);
+    }
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      // Local fallback processing
+      setTimeout(() => {
+        currentBaseline = localProcess(cleanText);
+        currentRefined = currentBaseline;
+        hasRealOutput = true;
+        if (valBestWord) valBestWord.textContent = cleanText.split(' ').sort((a,b) => b.length - a.length)[0] || 'voice';
+        if (valDetectedLang) valDetectedLang.textContent = 'LOCAL (EN)';
+        if (valIntentScore) valIntentScore.textContent = '100%';
+        if (latencyLabel) latencyLabel.textContent = 'Local Normalizer (<1ms)';
+        updateOutputView();
+      }, 50);
+      return;
+    }
+
+    // Arm 6s server response timeout fallback
+    serverTimeoutTimer = setTimeout(() => {
+      if (!currentRefined && !currentBaseline) {
+        currentBaseline = localProcess(cleanText);
+        currentRefined = currentBaseline;
+        hasRealOutput = true;
+        if (valBestWord) valBestWord.textContent = cleanText.split(' ').sort((a,b) => b.length - a.length)[0] || 'voice';
+        if (latencyLabel) latencyLabel.textContent = 'Fallback (Timeout ~6s)';
+        if (engineBadge) engineBadge.textContent = 'Engine: Local Fallback';
+        updateOutputView();
+      }
+    }, 6000);
+
+    socket.send(JSON.stringify({
+      type: 'transcript',
+      text: cleanText,
+      language: selLanguage && selLanguage.value !== 'auto' ? selLanguage.value : null,
+      punctuation_style: selPunctStyle ? selPunctStyle.value : 'standard',
+      enable_emoji: chkEmoji ? chkEmoji.checked : false,
+    }));
+  }
+
+  // ── Fetch & Render Memory Summary ────────────────────────────────────────
+  function renderMemory(mem) {
+    if (!mem) return;
+    if (valTxCount) valTxCount.textContent = mem.transcript_count || 0;
+
+    const fillers = mem.learned_fillers || {};
+    const fillerEntries = Object.entries(fillers);
+    if (valFillersCount) valFillersCount.textContent = fillerEntries.length;
+
+    if (learnedListEl) {
+      if (fillerEntries.length === 0) {
+        learnedListEl.innerHTML = '<span class="badge">None active yet (threshold: 3 observations)</span>';
+      } else {
+        learnedListEl.innerHTML = fillerEntries
+          .map(([w, c]) => `<span class="memory-tag">${escapeHtml(w)} <span class="memory-count">${Number(c) || 0}</span></span>`)
+          .join('');
+      }
+    }
+
+    const phrases = mem.common_phrases || [];
+    if (phrasesListEl) {
+      if (phrases.length === 0) {
+        phrasesListEl.innerHTML = '<span class="badge">Collecting domain terminology…</span>';
+      } else {
+        phrasesListEl.innerHTML = phrases
+          .map(p => `<span class="memory-tag" style="background:rgba(6,182,212,0.12); border-color:rgba(6,182,212,0.3); color:#a5f3fc;">${escapeHtml(p)}</span>`)
+          .join('');
+      }
+    }
+  }
+
+  async function fetchMemorySummary() {
+    try {
+      const isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+      const endpoint = (isHttp && location.host) ? '/memory' : 'http://127.0.0.1:8000/memory';
+      const res = await fetch(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        renderMemory(data);
+        if (valMemoryStatus) {
+          valMemoryStatus.textContent = 'Active';
+          valMemoryStatus.style.color = 'var(--accent-emerald)';
+        }
+      } else {
+        if (valMemoryStatus) {
+          valMemoryStatus.textContent = 'HTTP Error';
+          valMemoryStatus.style.color = 'var(--accent-amber)';
+        }
+      }
+    } catch(e) {
+      console.warn('Failed to fetch /memory', e);
+      if (valMemoryStatus) {
+        valMemoryStatus.textContent = 'Local Standby';
+        valMemoryStatus.style.color = 'var(--accent-amber)';
+      }
+    }
+  }
+
+  // ── Event Listeners ──────────────────────────────────────────────────────
+  if (btnProcessInput) {
+    btnProcessInput.addEventListener('click', () => {
+      sendTranscript(customInput ? customInput.value : '');
+    });
+  }
+
+  if (customInput) {
+    customInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        sendTranscript(customInput.value);
+      }
+    });
+  }
+
+  if (btnQuickSample) {
+    btnQuickSample.addEventListener('click', () => {
+      const sample = samples[sampleIndex % samples.length];
+      sampleIndex++;
+      if (customInput) customInput.value = sample;
+      sendTranscript(sample);
+    });
+  }
+
+  document.querySelectorAll('.sample-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const sample = chip.getAttribute('data-sample');
+      if (customInput) customInput.value = sample;
+      sendTranscript(sample);
+    });
+  });
+
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      clearTimeout(webSilenceTimer);
+      clearTimeout(serverTimeoutTimer);
+      lastSentUtterance = '';
+      lastSentTimestamp = 0;
+      webPendingFinal = '';
+      webLiveBuffer = '';
+      hasRealOutput = false;
+      if (customInput) customInput.value = '';
+      currentRaw = '';
+      currentBaseline = '';
+      currentRefined = '';
+      if (outputContent) outputContent.textContent = 'Cleared. Ready for new input.';
+    });
+  }
+
+  function copyToClipboard(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopiedState).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showCopiedState();
+    } catch (err) {
+      console.error('Clipboard copy failed:', err);
+    }
+  }
+
+  function showCopiedState() {
+    if (!btnCopy) return;
+    btnCopy.textContent = '✓ Copied!';
+    btnCopy.classList.add('copied');
+    setTimeout(() => {
+      btnCopy.textContent = 'Copy';
+      btnCopy.classList.remove('copied');
+    }, 1800);
+  }
+
+  if (btnCopy) {
+    btnCopy.addEventListener('click', () => {
+      if (!hasRealOutput) return;
+      const text = outputContent ? outputContent.textContent : '';
+      if (!text) return;
+      copyToClipboard(text);
+    });
+  }
+
+  if (btnRefreshMemory) {
+    btnRefreshMemory.addEventListener('click', fetchMemorySummary);
+  }
+
+  // Initialize
+  connect();
+})();
+</script>
+</body>
+</html>

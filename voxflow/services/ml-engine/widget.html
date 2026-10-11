@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxFlow Widget</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─── Page shell ─────────────────────────────────────────────────────────── */
+body {
+  font-family: 'IBM Plex Mono', monospace;
+  /* Transparent so this page can be loaded in an iframe overlay.
+     When opened standalone the browser shows its default (white/dark) bg. */
+  background: transparent;
+}
+
+/* ─── Fixed floating anchor ──────────────────────────────────────────────── */
+#vox-anchor {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 99999;
+  width: 306px;     /* 300px pill + 3px border each side */
+}
+
+/* ─── The pill ───────────────────────────────────────────────────────────── */
+#pill {
+  width: 300px;
+  height: 62px;
+  border-radius: 31px;
+  border: 1px solid rgba(130, 60, 220, 0.14);
+  background: #06030d;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: border-color 0.45s, box-shadow 0.45s;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.025),
+    0 10px 40px rgba(0,0,0,0.92),
+    0  0  55px rgba(70, 0, 120, 0.10);
+}
+
+#pill.active {
+  border-color: rgba(150, 70, 255, 0.30);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.04),
+    0 10px 40px rgba(0,0,0,0.92),
+    0  0  80px rgba(100, 0, 200, 0.32),
+    0  0  24px rgba(  0,220,120, 0.07);
+}
+
+/* ─── SVG gooey-filter container ─────────────────────────────────────────── */
+/*
+   The "venom body" is built with the CSS metaball / gooey technique:
+   - n opaque purple circles are placed inside this wrapper
+   - feGaussianBlur softens their edges
+   - feColorMatrix with high amplification creates a sharp alpha threshold
+   → where circles are close they merge into one organic liquid mass
+*/
+#goo-wrap {
+  position: absolute;
+  inset: 0;
+  /* filter runs on the children; the pill's overflow:hidden clips the result */
+  filter: url(#vg);
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+/* 5 blobs tiled across the 300 × 62 pill.
+   Overlap ≈ 18px so the gooey threshold always merges them. */
+.b1 { width:74px; height:62px; left:  -2px; top:0; background:#4d1090; animation:v1 7.2s ease-in-out infinite; }
+.b2 { width:72px; height:62px; left:  54px; top:0; background:#3b0c72; animation:v2 5.8s ease-in-out infinite; }
+.b3 { width:74px; height:62px; left: 108px; top:0; background:#5a1298; animation:v3 6.6s ease-in-out infinite; }
+.b4 { width:72px; height:62px; left: 162px; top:0; background:#3e0d7a; animation:v4 8.1s ease-in-out infinite; }
+.b5 { width:74px; height:62px; left: 224px; top:0; background:#501190; animation:v5 6.3s ease-in-out infinite; }
+
+/* Slow organic drift — idle */
+@keyframes v1 {
+  0%,100% { transform:translate(0,0) scale(1,.95) }
+  35%     { transform:translate( 7px,-5px) scale(1.08,.90) }
+  70%     { transform:translate(-4px, 6px) scale(.94,1.06) }
+}
+@keyframes v2 {
+  0%,100% { transform:translate(0,0) scale(1,1) }
+  28%     { transform:translate(-9px, 4px) scale(1.10,.90) }
+  65%     { transform:translate( 5px,-7px) scale(.91,1.09) }
+}
+@keyframes v3 {
+  0%,100% { transform:translate(0,0) scale(1,.96) }
+  42%     { transform:translate( 5px, 8px) scale(1.07,.95) }
+  80%     { transform:translate(-7px,-4px) scale(.96,1.04) }
+}
+@keyframes v4 {
+  0%,100% { transform:translate(0,0) scale(1,1) }
+  38%     { transform:translate(-8px,-6px) scale(1.09,.93) }
+  72%     { transform:translate( 4px, 5px) scale(.94,1.06) }
+}
+@keyframes v5 {
+  0%,100% { transform:translate(0,0) scale(1,.97) }
+  32%     { transform:translate( 7px,-4px) scale(.92,1.08) }
+  67%     { transform:translate(-5px, 6px) scale(1.07,.94) }
+}
+
+/* ── Active (listening / wake): speed up blobs ── */
+#pill.active .b1 { animation-duration:1.8s }
+#pill.active .b2 { animation-duration:1.4s }
+#pill.active .b3 { animation-duration:1.6s }
+#pill.active .b4 { animation-duration:2.0s }
+#pill.active .b5 { animation-duration:1.5s }
+
+/* ── Processing: frantic ── */
+#pill.processing .b1 { animation-duration:.55s }
+#pill.processing .b2 { animation-duration:.48s }
+#pill.processing .b3 { animation-duration:.60s }
+#pill.processing .b4 { animation-duration:.52s }
+#pill.processing .b5 { animation-duration:.57s }
+
+/* ─── Venom sheen / highlight ───────────────────────────────────────────── */
+/* Thin light sweep so the "symbiote" looks wet */
+#sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    96deg,
+    transparent 22%,
+    rgba(255,255,255,.028) 49%,
+    transparent 76%
+  );
+  pointer-events: none;
+}
+
+/* ─── Venom eyes (appear when active) ───────────────────────────────────── */
+/* Two white tear-drop/oval shapes → classic symbiote eye pattern */
+#eyes {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  display: flex;
+  gap: 58px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+#pill.active #eyes { opacity: 1 }
+
+.eye {
+  width: 16px; height: 21px;
+  background: #dce8ff;
+  border-radius: 50% 50% 50% 50% / 60% 60% 42% 42%;
+  position: relative;
+  box-shadow: 0 0 10px rgba(160,120,255,.55), 0 0 4px rgba(190,150,255,.9);
+  animation: blink 3.5s ease-in-out infinite;
+}
+.eye::after {
+  /* glowing green pupil — teal slit */
+  content:'';
+  position: absolute;
+  bottom: 3px; left: 50%;
+  transform: translateX(-50%);
+  width: 5px; height: 8px;
+  background: #00ffaa;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #00ffaa, 0 0 18px rgba(0,255,170,.35);
+}
+@keyframes blink {
+  0%,88%,100% { transform:scaleY(1)    }
+  92%          { transform:scaleY(0.07) }
+}
+
+/* ─── Pill content overlay ───────────────────────────────────────────────── */
+#pill-ui {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  pointer-events: none;
+  gap: 8px;
+}
+
+/* Status dot */
+#sdot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.18);
+  flex-shrink: 0;
+  animation: breathe 2.5s ease-in-out infinite;
+  transition: background .3s, box-shadow .3s;
+}
+#sdot.on {
+  background: #00ffaa;
+  box-shadow: 0 0 8px #00ffaa;
+}
+@keyframes breathe { 0%,100%{opacity:1} 50%{opacity:.28} }
+
+/* Status label */
+#plabel {
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.28);
+  white-space: nowrap;
+  transition: opacity .2s;
+}
+
+/* Waveform bars — only shown in 'listening' state */
+#waveform {
+  display: none;
+  align-items: center;
+  gap: 2.5px;
+  height: 28px;
+}
+#pill.listening #waveform { display: flex }
+#pill.listening #plabel   { opacity: 0    }
+
+.wbar {
+  width: 2px;
+  background: rgba(0,255,170,.75);
+  border-radius: 1px;
+  height: 4px;
+  transition: height 0.05s ease;
+}
+
+/* ─── Result card ────────────────────────────────────────────────────────── */
+#result-card {
+  width: 300px;
+  background: rgba(5,2,11,.97);
+  border: 1px solid rgba(110,50,200,.22);
+  border-radius: 18px;
+  padding: 14px 16px 12px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 6px 28px rgba(0,0,0,.72);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+#result-card.show { display: flex }
+
+#result-txt {
+  font-size: 13px;
+  line-height: 1.68;
+  color: rgba(255,255,255,.83);
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-hint {
+  font-size: 9.5px;
+  color: rgba(255,255,255,.18);
+  letter-spacing: .06em;
+}
+
+#copy-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border: 1px solid rgba(0,255,170,.22);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(0,255,170,.65);
+  cursor: pointer;
+  pointer-events: all;
+  transition: background .15s, color .15s, border-color .15s;
+}
+#copy-btn:hover        { background: rgba(0,255,170,.09); color:#00ffaa; border-color:rgba(0,255,170,.5) }
+#copy-btn.copied       { color:rgba(255,255,255,.55); border-color:rgba(255,255,255,.18) }
+
+/* ─── Hidden SVG filter definitions ──────────────────────────────────────── */
+.filter-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+</style>
+</head>
+<body>
+
+<!-- NOTE: When embedding this widget page in an iframe, the parent container must include allow="microphone" -->
+
+<!-- ── SVG filter definitions (invisible) ────────────────────────────────── -->
+<svg aria-hidden="true" class="filter-defs">
+  <defs>
+    <!--
+      venom-goo: gooey metaball filter.
+      feGaussianBlur  → soft halo around each blob
+      feColorMatrix   → threshold the alpha: blobs merge when halos overlap
+      Result: purple liquid masses that join organically as they drift.
+    -->
+    <filter id="vg" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="b"/>
+      <feColorMatrix in="b" mode="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 22 -10"/>
+    </filter>
+  </defs>
+</svg>
+
+<!-- ── Widget ────────────────────────────────────────────────────────────── -->
+<div id="vox-anchor">
+
+  <!-- The pill -->
+  <div id="pill" title="Say &quot;Hi VoxFlow&quot; to start recording">
+
+    <!-- Venom blobs (gooey filter applied to parent #goo-wrap) -->
+    <div id="goo-wrap">
+      <div class="blob b1"></div>
+      <div class="blob b2"></div>
+      <div class="blob b3"></div>
+      <div class="blob b4"></div>
+      <div class="blob b5"></div>
+    </div>
+
+    <!-- Wet sheen overlay -->
+    <div id="sheen"></div>
+
+    <!-- Symbiote eyes -->
+    <div id="eyes">
+      <div class="eye"></div>
+      <div class="eye"></div>
+    </div>
+
+    <!-- Label / waveform -->
+    <div id="pill-ui">
+      <div id="sdot"></div>
+      <span id="plabel">Say · Hi VoxFlow</span>
+      <div id="waveform">
+        <div class="wbar"></div><div class="wbar"></div>
+        <div class="wbar"></div><div class="wbar"></div>
+        <div class="wbar"></div><div class="wbar"></div>
+        <div class="wbar"></div><div class="wbar"></div>
+        <div class="wbar"></div><div class="wbar"></div>
+        <div class="wbar"></div><div class="wbar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result card (drops in below the pill) -->
+  <div id="result-card">
+    <div id="result-txt"></div>
+    <div class="card-foot">
+      <span class="card-hint">tap pill to reset</span>
+      <button id="copy-btn">⊕ Copy</button>
+    </div>
+  </div>
+
+</div><!-- #vox-anchor -->
+
+<script>
+'use strict';
+(function () {
+
+  /* ── Element refs ────────────────────────────────────────────────────── */
+  const pill       = document.getElementById('pill');
+  const plabel     = document.getElementById('plabel');
+  const sdot       = document.getElementById('sdot');
+  const resultCard = document.getElementById('result-card');
+  const resultTxt  = document.getElementById('result-txt');
+  const copyBtn    = document.getElementById('copy-btn');
+
+  /* ── VoxFlow local processing (offline fallback) ─────────────────────── */
+  const NORMS = [
+    [/\bgonna\b/gi,  'going to'],  [/\bwanna\b/gi,   'want to'],
+    [/\bgotta\b/gi,  'got to'],    [/\bkinda\b/gi,   'kind of'],
+    [/\bsorta\b/gi,  'sort of'],   [/\bdunno\b/gi,   "don't know"],
+    [/\bcoulda\b/gi, 'could have'],[/\bwoulda\b/gi,  'would have'],
+    [/\bshoulda\b/gi,'should have'],[/\blemme\b/gi,  'let me'],
+    [/\bgimme\b/gi,  'give me'],   [/\bnope\b/gi,   'no'],
+  ];
+
+  function localProcess(text) {
+    let t = text;
+    for (const [p, r] of NORMS) t = t.replace(p, r);
+    // True fillers only: um, uh, er, ah, you know
+    t = t.replace(/\b(um|uh|er|ah|you\s+know)\b/gi, '');
+    // Remove "like" only when surrounded by commas/pauses
+    t = t.replace(/(?:,\s*like\s*,|,\s*like\b|\blike\s*,)/gi, ', ');
+    // Clean leftover punctuation (" ,", ",,", etc.)
+    t = t
+      .replace(/\s*,\s*,+/g, ',')
+      .replace(/\s+([,!?.;:])/g, '$1')
+      .replace(/,\s*([.!?])/g, '$1')
+      .replace(/^[\s,;:]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (t) t = t[0].toUpperCase() + t.slice(1);
+    if (t && !/[.!?]$/.test(t)) t += '.';
+    return t;
+  }
+
+  /* ── WebSocket (live VoxFlow backend) ───────────────────────────────── */
+  let ws = null;
+  let wsReconnectTimer = null;
+
+  function scheduleWSReconnect() {
+    if (wsReconnectTimer) return;
+    wsReconnectTimer = setTimeout(() => {
+      wsReconnectTimer = null;
+      connectWS();
+    }, 3000);
+  }
+
+  function connectWS() {
+    try {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+      const isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+      const host = (isHttp && location.host) ? location.host : '127.0.0.1:8000';
+      const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      ws = new WebSocket(`${proto}${host}/ws`);
+      ws.addEventListener('open', () => {
+        if (wsReconnectTimer) {
+          clearTimeout(wsReconnectTimer);
+          wsReconnectTimer = null;
+        }
+      });
+      ws.addEventListener('error', () => {
+        ws = null;
+        scheduleWSReconnect();
+      });
+      ws.addEventListener('close', () => {
+        ws = null;
+        scheduleWSReconnect();
+      });
+    } catch (_) {
+      ws = null;
+      scheduleWSReconnect();
+    }
+  }
+
+  function processText(raw, cb) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return void cb(localProcess(raw));
+    }
+    let done = false;
+    const timeout = setTimeout(() => {
+      if (!done) {
+        done = true;
+        ws.removeEventListener('message', h);
+        cb(localProcess(raw));
+      }
+    }, 4500);
+
+    const h = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.type === 'transcript') {
+          if (!done) {
+            done = true;
+            clearTimeout(timeout);
+            ws.removeEventListener('message', h);
+            cb(d.text || localProcess(raw));
+          }
+        } else if (d.type === 'error') {
+          if (!done) {
+            done = true;
+            clearTimeout(timeout);
+            ws.removeEventListener('message', h);
+            cb(localProcess(raw));
+          }
+        }
+      } catch (_) {}
+    };
+    ws.addEventListener('message', h);
+    ws.send(JSON.stringify({ type: 'transcript', text: raw }));
+  }
+
+  connectWS();
+
+  /* ── State machine ───────────────────────────────────────────────────── */
+  // idle → wake → listening → processing → result → idle
+  let state = 'idle';
+  let audioCtx = null, analyser = null, dataArray = null, micStream = null;
+  let hardCapTimer = null;
+  let waveAnimId = null;
+
+  const LABEL = {
+    idle:       'Say · Hi VoxFlow',
+    wake:       'Wake word…',
+    listening:  '',
+    processing: 'Thinking…',
+    result:     '',
+  };
+
+  function enter(s) {
+    clearTimeout(hardCapTimer);
+    state = s;
+
+    /* pill classes */
+    pill.className = '';
+    if (s === 'wake')                      pill.classList.add('active', 'wake');
+    if (s === 'listening')                 pill.classList.add('active', 'listening');
+    if (s === 'processing')                pill.classList.add('active', 'processing');
+    if (s === 'result')                    pill.classList.add('has-result');
+
+    /* status dot */
+    sdot.className = s === 'idle' ? '' : 'on';
+
+    /* label */
+    plabel.textContent = LABEL[s] ?? '';
+
+    /* result card */
+    if (s === 'result') resultCard.classList.add('show');
+    else                resultCard.classList.remove('show');
+
+    if (s === 'listening') {
+      initMicAnalyzer();
+      updateWaveBars();
+    } else {
+      stopMicAnalyzer();
+    }
+  }
+
+  /* ── Real-Time Audio Visualizer ────────────────────────────────────────── */
+  async function initMicAnalyzer() {
+    if (audioCtx) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (state !== 'listening') {
+        stream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+        return;
+      }
+      micStream = stream;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      if (state !== 'listening') {
+        stopMicAnalyzer();
+        return;
+      }
+      const source = audioCtx.createMediaStreamSource(micStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      // updateWaveBars() is triggered from enter('listening')
+    } catch (e) {
+      console.warn('Audio visualizer error', e);
+    }
+  }
+
+  function stopMicAnalyzer() {
+    if (waveAnimId) {
+      cancelAnimationFrame(waveAnimId);
+      waveAnimId = null;
+    }
+    if (micStream) {
+      micStream.getTracks().forEach(t => {
+        try { t.stop(); } catch (_) {}
+      });
+    }
+    if (audioCtx && audioCtx.state !== 'closed') {
+      try { audioCtx.close(); } catch (_) {}
+    }
+    micStream = null;
+    audioCtx = null;
+    analyser = null;
+    dataArray = null;
+    const bars = document.querySelectorAll('.wbar');
+    bars.forEach(b => b.style.height = '4px');
+  }
+
+  let waveTick = 0;
+  function updateWaveBars() {
+    if (state !== 'listening') {
+      waveAnimId = null;
+      return;
+    }
+    const bars = document.querySelectorAll('.wbar');
+    if (analyser && dataArray) {
+      analyser.getByteFrequencyData(dataArray);
+      for (let i = 0; i < bars.length; i++) {
+        const val = dataArray[i * 2 + 2] || 0;
+        const height = 4 + (val / 255) * 22;
+        bars[i].style.height = `${height}px`;
+      }
+    } else {
+      waveTick += 0.18;
+      for (let i = 0; i < bars.length; i++) {
+        const h = 4 + Math.abs(Math.sin(waveTick + i * 0.45)) * 18;
+        bars[i].style.height = `${h}px`;
+      }
+    }
+    waveAnimId = requestAnimationFrame(updateWaveBars);
+  }
+
+  /* ── Speech Recognition ──────────────────────────────────────────────── */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  let recog       = null;
+  let widgetLiveBuffer = '';
+  let widgetPendingFinal = '';
+  let silenceT    = null;
+  let wakeRestartTimer = null;
+
+  function scheduleWakeRestart(delay) {
+    clearTimeout(wakeRestartTimer);
+    wakeRestartTimer = setTimeout(() => {
+      if (state === 'idle') startWake();
+    }, delay);
+  }
+
+  function mkRecog(continuous, interim) {
+    const r         = new SR();
+    r.continuous    = continuous;
+    r.interimResults= interim;
+    r.lang          = 'en-US';
+    return r;
+  }
+
+  /* — Wake word phase — */
+  function startWake() {
+    clearTimeout(wakeRestartTimer);
+    if (recog) try { recog.abort(); } catch (_) {}
+    recog = mkRecog(true, true);
+
+    recog.onresult = (ev) => {
+      if (state !== 'idle') return;
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const t = ev.results[i][0].transcript.toLowerCase();
+        // Match common variations and extract any command that follows
+        const regex = /\b(?:(?:hi|hey|high|hai|ok|okay|hello)\s+)?(?:vox\s*flow|box\s*flow|vox\s*flo|fox\s*flow|voxflow|boss\s*flow)\b(.*)/i;
+        const match = t.match(regex);
+        if (match) {
+          triggerWake(match[1].trim());
+          return;
+        }
+      }
+    };
+    recog.onerror = (ev) => {
+      if (ev && ev.error === 'aborted') return;
+      if (state === 'idle') scheduleWakeRestart(800);
+    };
+    recog.onend = () => {
+      if (state === 'idle') scheduleWakeRestart(300);
+    };
+
+    try { recog.start(); } catch (_) {}
+  }
+
+  function triggerWake(initialText = '') {
+    try { recog.abort(); } catch (_) {}
+    enter('wake');
+    widgetPendingFinal = initialText ? initialText.trim() : '';
+    widgetLiveBuffer = '';
+    setTimeout(startCapture, 380);
+  }
+
+  /* — Capture phase: record utterance, stop on silence — */
+  function startCapture() {
+    enter('listening');
+    recog = mkRecog(true, true);
+
+    recog.onresult = (ev) => {
+      clearTimeout(silenceT);
+      let interim = '';
+      let newFinal = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) {
+          newFinal += ev.results[i][0].transcript + ' ';
+        } else {
+          interim += ev.results[i][0].transcript;
+        }
+      }
+      if (newFinal.trim()) {
+        widgetPendingFinal = (widgetPendingFinal ? widgetPendingFinal + ' ' : '') + newFinal.trim();
+      }
+      widgetLiveBuffer = interim.trim();
+
+      const combined = (widgetPendingFinal + (widgetLiveBuffer ? ' ' + widgetLiveBuffer : '')).trim();
+      if (combined) {
+        plabel.textContent = combined;
+      }
+
+      // 1.8-second silence → auto-finalise
+      silenceT = setTimeout(finalise, 1800);
+    };
+
+    if (widgetPendingFinal) {
+      plabel.textContent = widgetPendingFinal;
+      silenceT = setTimeout(finalise, 1800);
+    }
+
+    recog.onerror = (ev) => {
+      if (ev && ev.error === 'aborted') return;
+      finalise();
+    };
+    recog.onend = () => {
+      if (state === 'listening') finalise();
+    };
+
+    try { recog.start(); } catch (_) { finalise(); }
+
+    // Hard cap: 30 s
+    clearTimeout(hardCapTimer);
+    hardCapTimer = setTimeout(() => {
+      if (state === 'listening') finalise();
+    }, 30_000);
+  }
+
+  function finalise() {
+    if (state !== 'listening' && state !== 'wake') return;
+    clearTimeout(silenceT);
+    clearTimeout(hardCapTimer);
+    try { recog.abort(); } catch (_) {}
+
+    const raw = (widgetPendingFinal + (widgetLiveBuffer ? ' ' + widgetLiveBuffer : '')).trim();
+    widgetPendingFinal = '';
+    widgetLiveBuffer = '';
+    if (!raw) { enter('idle'); startWake(); return; }
+
+    enter('processing');
+    processText(raw, (cleaned) => {
+      resultTxt.textContent = cleaned;
+      enter('result');
+    });
+  }
+
+  /* — Copy button — */
+  function copyTextToClipboard(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopied).catch(fallbackClipboard);
+    } else {
+      fallbackClipboard();
+    }
+    function showCopied() {
+      copyBtn.textContent = '✓ Copied';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.textContent = '⊕ Copy';
+        copyBtn.classList.remove('copied');
+      }, 1800);
+    }
+    function fallbackClipboard() {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showCopied();
+      } catch (_) {
+        const sel = window.getSelection();
+        const rng = document.createRange();
+        rng.selectNodeContents(resultTxt);
+        sel.removeAllRanges();
+        sel.addRange(rng);
+      }
+    }
+  }
+
+  copyBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyTextToClipboard(resultTxt.textContent);
+  });
+
+  /* — Tap pill to toggle voice capture or dismiss result — */
+  pill.addEventListener('click', () => {
+    if (state === 'result') {
+      enter('idle');
+      if (SR) startWake();
+    } else if (state === 'idle') {
+      triggerWake();
+    } else if (state === 'listening' || state === 'wake') {
+      finalise();
+    }
+  });
+
+  /* ── Text-input fallback (no Speech API) ─────────────────────────────── */
+  function setupTextFallback() {
+    pill.style.cursor = 'pointer';
+    pill.title = 'Click to enter text manually';
+    pill.addEventListener('click', () => {
+      const txt = window.prompt('Paste or type your text:');
+      if (!txt || !txt.trim()) return;
+      enter('processing');
+      processText(txt.trim(), (cleaned) => {
+        resultTxt.textContent = cleaned;
+        enter('result');
+      });
+    });
+  }
+
+  /* ── Boot ────────────────────────────────────────────────────────────── */
+  enter('idle');
+  if (!SR) {
+    plabel.textContent = 'Speech API unavailable';
+    setupTextFallback();
+  } else {
+    startWake();
+  }
+
+})();
+</script>
+</body>
+</html>

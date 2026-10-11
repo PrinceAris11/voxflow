@@ -1,0 +1,92 @@
+# ==============================================================================
+# VoxFlow — Git Ignore Configuration
+# ==============================================================================
+
+# Python Environments & Artifacts
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Pytest & Testing Cache
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Type Checkers & Linters
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.pyrefly/
+
+# Node & Electron Desktop Artifacts
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+voxflow/apps/desktop/dist/
+voxflow/apps/desktop/out/
+
+# C / C++ Compiler & Debug Builds
+build/
+*.o
+*.obj
+*.out
+*.app
+
+# Local Environment, Secrets & Credentials
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# Operating System & IDE Cache
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# VoxFlow Session & Local Scratch Artifacts
+*.tmp
+scratch/
+smoke_memory.json

@@ -1,0 +1,64 @@
+{
+  "name": "voxflow-desktop",
+  "version": "1.0.0",
+  "description": "Voice-first desktop overlay with wake-word activation, real-time adaptive memory refinement, and automatic paste.",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.voxflow.desktop",
+    "productName": "VoxFlow",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    }
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "keywords": [
+    "voice",
+    "speech-to-text",
+    "ai",
+    "transcription",
+    "productivity",
+    "electron"
+  ],
+  "author": "VoxFlow Team",
+  "license": "MIT"
+}

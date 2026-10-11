@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoxFlow Floating Bar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="cylindrical_bar.css">
+</head>
+<body>
+  <!-- Hidden SVG Metaball / Gooey Filter -->
+  <svg aria-hidden="true" style="position: absolute; width: 0; height: 0; overflow: hidden;">
+    <defs>
+      <filter id="bar-goo" x="-10%" y="-10%" width="120%" height="120%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+        <feColorMatrix in="blur" mode="matrix"
+          values="1 0 0 0 0
+                  0 1 0 0 0
+                  0 0 1 0 0
+                  0 0 0 20 -8" />
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Outer Anchor Shell -->
+  <div id="bar-wrapper" class="bar-wrapper state-idle">
+    
+    <!-- Floating Cylindrical Pill -->
+    <div id="cylindrical-bar" class="cylindrical-bar" title="VoxFlow Assistant (Click to talk | Wake: 'VoxFlow' | Ctrl+Shift+Space)">
+      
+      <!-- Drag Grip Handle -->
+      <div id="drag-grip" class="drag-grip" title="Drag to reposition">
+        <svg viewBox="0 0 10 16" fill="currentColor">
+          <circle cx="2" cy="2" r="1.5" />
+          <circle cx="8" cy="2" r="1.5" />
+          <circle cx="2" cy="8" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="2" cy="14" r="1.5" />
+          <circle cx="8" cy="14" r="1.5" />
+        </svg>
+      </div>
+
+      <!-- Ambient Organic Fluid Blobs (with SVG Gooey Filter) -->
+      <div class="blob-stage">
+        <div class="blob b1"></div>
+        <div class="blob b2"></div>
+        <div class="blob b3"></div>
+        <div class="blob b4"></div>
+      </div>
+
+      <!-- Wet Sheen Reflection -->
+      <div class="pill-sheen"></div>
+
+      <!-- Status Indicator / Mic -->
+      <div id="status-indicator" class="status-indicator" role="button" aria-label="Microphone Status">
+        <div class="pulse-ring ring-1"></div>
+        <div class="pulse-ring ring-2"></div>
+        <div class="spinner-ring"></div>
+        
+        <!-- Mic Icon (Idle / Listening) -->
+        <svg class="glyph glyph-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+
+        <!-- Spinner Icon (Processing) -->
+        <svg class="glyph glyph-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="9" stroke-opacity="0.25"></circle>
+          <path d="M12 3a9 9 0 0 1 9 9" stroke-linecap="round"></path>
+        </svg>
+
+        <!-- Checkmark Icon (Pasted / Success) -->
+        <svg class="glyph glyph-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+
+      <!-- Content Strip & Live Transcript Display -->
+      <div class="content-strip">
+        <div class="brand-row">
+          <span class="brand-label">VOXFLOW</span>
+          <span id="badge-state" class="badge-state">READY</span>
+          <span id="badge-lang" class="badge-lang" title="Detected Language">AUTO</span>
+          <button id="btn-emoji-toggle" class="btn-emoji-toggle" title="Toggle Contextual Emojis (Off/On)" aria-label="Toggle Emojis">✨</button>
+          <span class="hotkey-hint">Ctrl+Shift+Space</span>
+        </div>
+        
+        <!-- Live Speech Display -->
+        <div id="transcript-live" class="transcript-live">Say &ldquo;VoxFlow&rdquo; or click to talk</div>
+        
+        <!-- Manual Quick Text-Input (Hidden by default) -->
+        <input id="quick-input" class="quick-input" type="text" placeholder="Type thoughts here & hit Enter..." autocomplete="off" />
+      </div>
+
+      <!-- Action Slot: Mini Equalizer Waveform & Quick Buttons -->
+      <div class="action-slot">
+        <!-- 5-bar Reactive Waveform -->
+        <div id="wave-bars" class="wave-bars" title="Audio Activity">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+          <span class="bar bar-4"></span>
+          <span class="bar bar-5"></span>
+        </div>
+
+        <!-- Manual Keyboard Input Toggle Button -->
+        <button id="btn-keyboard" class="btn-icon" aria-label="Toggle text input" title="Type manually">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+            <line x1="6" y1="8" x2="6.01" y2="8"/>
+            <line x1="10" y1="8" x2="10.01" y2="8"/>
+            <line x1="14" y1="8" x2="14.01" y2="8"/>
+            <line x1="18" y1="8" x2="18.01" y2="8"/>
+            <line x1="6" y1="12" x2="6.01" y2="12"/>
+            <line x1="10" y1="12" x2="10.01" y2="12"/>
+            <line x1="14" y1="12" x2="14.01" y2="12"/>
+            <line x1="18" y1="12" x2="18.01" y2="12"/>
+            <line x1="7" y1="16" x2="17" y2="16"/>
+          </svg>
+        </button>
+
+        <!-- Primary Action Toggle (Mic / Stop / Confirm) -->
+        <button id="btn-toggle" class="btn-toggle" aria-label="Toggle voice capture" title="Start voice capture">
+          <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Mic Path (Capsule + Arc + Stand) -->
+            <path class="path-mic" d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3"/>
+            <!-- Stop Square Path -->
+            <rect class="path-stop" x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="cylindrical_bar.js"></script>
+</body>
+</html>

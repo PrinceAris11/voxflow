@@ -1,0 +1,121 @@
+[
+  {
+    "id": "clean_en_1",
+    "category": "clean_english",
+    "input": "We need to optimize the database query to decrease page load time.",
+    "expected_action": "pass",
+    "expected_text_contains": "optimize the database query",
+    "min_intent_score": 0.80
+  },
+  {
+    "id": "clean_en_2",
+    "category": "clean_english",
+    "input": "Please send the finalized Q3 financial summary to the leadership team.",
+    "expected_action": "pass",
+    "expected_text_contains": "Q3 financial summary",
+    "min_intent_score": 0.85
+  },
+  {
+    "id": "rambling_en_1",
+    "category": "rambling_filler",
+    "input": "So um basically what I was thinking is that we like need to check the API response time you know?",
+    "expected_action": "pass",
+    "expected_text_contains": "check the API response time",
+    "forbidden_words": ["um", "basically", "you know"],
+    "min_intent_score": 0.60
+  },
+  {
+    "id": "self_correction_1",
+    "category": "self_correction",
+    "input": "Let's schedule the client demo for Monday no wait make it Tuesday at 3 PM.",
+    "expected_action": "pass",
+    "expected_text_contains": "Tuesday at 3 PM",
+    "forbidden_words": ["no wait"],
+    "min_intent_score": 0.65
+  },
+  {
+    "id": "self_correction_2",
+    "category": "self_correction",
+    "input": "We should use a Postgres instance or rather let's do Redis cache.",
+    "expected_action": "pass",
+    "expected_text_contains": "Redis cache",
+    "forbidden_words": ["or rather"],
+    "min_intent_score": 0.50
+  },
+  {
+    "id": "code_switched_1",
+    "category": "code_switching",
+    "input": "Acha to kal meeting rakhte hain at 10 AM matlab ke team ke sath architectural discussion karni hai.",
+    "expected_action": "pass",
+    "expected_text_contains": "discussion",
+    "forbidden_words": ["matlab ke", "acha to"],
+    "min_intent_score": 0.60
+  },
+  {
+    "id": "code_switched_2",
+    "category": "code_switching",
+    "input": "yaar code review karlo please before deploying to production.",
+    "expected_action": "pass",
+    "expected_text_contains": "code review",
+    "min_intent_score": 0.70
+  },
+  {
+    "id": "urdu_script_1",
+    "category": "urdu_script",
+    "input": "ہمیں ڈیٹا بیس کے انڈیکس کو بہتر بنانے کی ضرورت ہے۔",
+    "expected_action": "pass",
+    "expected_text_contains": "ڈیٹا بیس",
+    "min_intent_score": 0.70
+  },
+  {
+    "id": "canonical_user_test_case",
+    "category": "intent_discard_commit",
+    "input": "I want to go to nowhere cancel that just type hi how are you",
+    "expected_action": "commit",
+    "expected_text_contains": "Hi, how are you?",
+    "forbidden_words": ["nowhere", "cancel that", "just type"],
+    "min_intent_score": 0.40
+  },
+  {
+    "id": "pure_cancel_en",
+    "category": "intent_discard",
+    "input": "I was thinking about the proposal nevermind cancel it",
+    "expected_action": "discard",
+    "expected_text_contains": "",
+    "min_intent_score": 0.0
+  },
+  {
+    "id": "pure_cancel_urdu",
+    "category": "intent_discard",
+    "input": "Kal ka plan ye tha choro isko rehne do",
+    "expected_action": "discard",
+    "expected_text_contains": "",
+    "min_intent_score": 0.0
+  },
+  {
+    "id": "multiple_consecutive_cancels",
+    "category": "intent_edge_case",
+    "input": "Wait I was saying something, cancel that, nevermind, chhoro isko, just type meeting postponed",
+    "expected_action": "commit",
+    "expected_text_contains": "Meeting postponed",
+    "forbidden_words": ["nevermind", "chhoro", "saying something"],
+    "min_intent_score": 0.40
+  },
+  {
+    "id": "trailing_conjunction_hold",
+    "category": "intent_trailing",
+    "input": "We need to refactor the authentication service because",
+    "expected_action": "pending",
+    "silence_duration_ms": 500.0,
+    "expected_text_contains": "authentication service",
+    "min_intent_score": 0.80
+  },
+  {
+    "id": "sequential_actions_formatting",
+    "category": "action_formatting",
+    "input": "First thing we gotta do is fix the build error in CI then after that ping Sarah and lastly deploy to production.",
+    "expected_action": "pass",
+    "expected_text_contains": "Action items:\n1. Fix the build error in CI",
+    "min_intent_score": 0.50
+  }
+]
